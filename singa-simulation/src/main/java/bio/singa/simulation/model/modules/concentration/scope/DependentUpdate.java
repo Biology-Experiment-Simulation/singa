@@ -1,7 +1,7 @@
 package bio.singa.simulation.model.modules.concentration.scope;
 
 import bio.singa.simulation.model.modules.concentration.*;
-import bio.singa.simulation.model.modules.concentration.imlementations.Diffusion;
+import bio.singa.simulation.model.modules.concentration.imlementations.transport.Diffusion;
 import bio.singa.simulation.model.modules.concentration.specifity.UpdateSpecificity;
 import bio.singa.simulation.model.sections.ConcentrationContainer;
 import bio.singa.simulation.model.simulation.Updatable;
@@ -14,7 +14,7 @@ import java.util.Map;
  * Dependent Updatable {@link ConcentrationBasedModule}s require an integer state of basically all updatables in a
  * simulation. First all updates for all updatables are calculated. Afterwards all half step concentrations are
  * determined and further all errors are calculated, looking for the {@link Updatable} with the largest
- * {@link LocalError} (e.g. {@link Diffusion}).
+ * {@link NumericalError} (e.g. {@link Diffusion}).
  *
  * @author cl
  */
@@ -85,8 +85,10 @@ public class DependentUpdate implements UpdateScope {
     }
 
     @Override
-    public void clearPotentialDeltas(Updatable updatable) {
-        module.getSimulation().getUpdatables().forEach(Updatable::clearPotentialConcentrationDeltas);
+    public void clearPotentialDeltas() {
+        for (Updatable current : module.getSimulation().getUpdatables()) {
+            current.getConcentrationManager().clearPotentialDeltas();
+        }
     }
 
     /**

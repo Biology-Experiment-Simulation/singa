@@ -11,19 +11,20 @@ import bio.singa.features.units.UnitRegistry;
 import bio.singa.simulation.model.graphs.AutomatonGraph;
 import bio.singa.simulation.model.graphs.AutomatonGraphs;
 import bio.singa.simulation.model.graphs.AutomatonNode;
+import bio.singa.simulation.model.modules.concentration.imlementations.transport.SingleFileChannelMembraneTransport;
 import bio.singa.simulation.model.sections.CellRegion;
 import bio.singa.simulation.model.sections.CellTopology;
 import bio.singa.simulation.model.simulation.Simulation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import tec.uom.se.quantity.Quantities;
+import tech.units.indriya.quantity.Quantities;
 
 import static bio.singa.features.units.UnitProvider.MOLE_PER_LITRE;
 import static bio.singa.simulation.features.DefaultFeatureSources.BINESH2015;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static tec.uom.se.unit.MetricPrefix.MICRO;
-import static tec.uom.se.unit.Units.METRE;
+import static tech.units.indriya.unit.MetricPrefix.MICRO;
+import static tech.units.indriya.unit.Units.METRE;
 
 /**
  * @author cl
@@ -38,6 +39,7 @@ class SingleFileChannelMembraneTransportTest {
     @AfterEach
     void cleanUp() {
         UnitRegistry.reinitialize();
+        Environment.reset();
     }
 
     @Test
@@ -48,8 +50,7 @@ class SingleFileChannelMembraneTransportTest {
         // water
         SmallMolecule water = ChEBIParserService.parse("CHEBI:15377", "water");
         // solutes
-        SmallMolecule solute = new SmallMolecule.Builder("solutes")
-                .name("solutes")
+        SmallMolecule solute = SmallMolecule.create("solutes")
                 .build();
         // aqp2
         Protein aquaporin2 = UniProtParserService.parse("P41181", "aqp2");
@@ -86,7 +87,6 @@ class SingleFileChannelMembraneTransportTest {
             assertTrue(currentOuterConcentration > previousOuterConcentration);
             previousOuterConcentration = currentOuterConcentration;
         }
-        Environment.reset();
     }
 
 }

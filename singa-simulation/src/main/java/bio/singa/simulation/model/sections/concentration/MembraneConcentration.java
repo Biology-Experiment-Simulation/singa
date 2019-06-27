@@ -8,7 +8,7 @@ import bio.singa.simulation.model.agents.pointlike.Vesicle;
 import bio.singa.simulation.model.graphs.AutomatonNode;
 import bio.singa.simulation.model.sections.CellRegion;
 import bio.singa.simulation.model.sections.CellSubsection;
-import bio.singa.simulation.model.simulation.Simulation;
+import bio.singa.simulation.model.sections.CellTopology;
 import bio.singa.simulation.model.simulation.Updatable;
 
 import javax.measure.Quantity;
@@ -29,6 +29,10 @@ public class MembraneConcentration implements InitialConcentration {
     private double numberOfMolecules;
 
     private Evidence evidence;
+
+    MembraneConcentration() {
+
+    }
 
     public MembraneConcentration(CellRegion region, ChemicalEntity entity, Quantity<Area> area, double numberOfMolecules, Evidence evidence) {
         this.region = region;
@@ -70,6 +74,7 @@ public class MembraneConcentration implements InitialConcentration {
         this.numberOfMolecules = numberOfMolecules;
     }
 
+    @Override
     public Evidence getEvidence() {
         return evidence;
     }
@@ -79,30 +84,43 @@ public class MembraneConcentration implements InitialConcentration {
     }
 
     @Override
-    public void initialize(Simulation simulation) {
-        for (Updatable updatable : simulation.getUpdatables()) {
+    public void initialize(Updatable updatable) {
+        // if this is vesicle
+        if (!updatable.getCellRegion().equals(region)) {
             // skip wrong regions
-            if (!updatable.getCellRegion().equals(region)) {
-                continue;
-            }
-            CellSubsection membraneSubsection = updatable.getConcentrationContainer().getMembraneSubsection();
-            // skip non membrane regions
-            if (membraneSubsection == null) {
-                continue;
-            }
-
-            // get representative area
-            Quantity<Area> updatableArea;
-            if (updatable instanceof Vesicle) {
-                updatableArea = ((Vesicle) updatable).getArea();
-            } else {
-                updatableArea = ((AutomatonNode) updatable).getMembraneArea();
-            }
-            // correlate
-            Quantity<?> adjustedMolecules = updatableArea.to(area.getUnit()).multiply(numberOfMolecules).divide(area);
-            double concentration = MolarConcentration.moleculesToConcentration(adjustedMolecules.getValue().doubleValue());
-            updatable.getConcentrationContainer().initialize(membraneSubsection, entity, UnitRegistry.concentration(concentration));
+            return;
         }
+        CellSubsection membraneSubsection = updatable.getConcentrationContainer().getMembraneSubsection();
+        // skip non membrane regions
+        if (membraneSubsection == null) {
+            return;
+        }
+        initializeUnchecked(updatable, CellTopology.MEMBRANE);
+    }
+
+    @Override
+    public void initializeUnchecked(Updatable updatable, CellTopology topology) {
+        // get representative area
+        Quantity<Area> updatableArea;
+        if (updatable instanceof Vesicle) {
+            updatableArea = ((Vesicle) updatable).getArea();
+        } else {
+            updatableArea = ((AutomatonNode) updatable).getMembraneArea();
+        }
+        // correlate
+        double concentration;
+        if (area != null) {
+            Quantity<?> adjustedMolecules = updatableArea.to(area.getUnit()).multiply(numberOfMolecules).divide(area);
+            concentration = MolarConcentration.moleculesToConcentration(adjustedMolecules.getValue().doubleValue());
+        } else {
+            concentration = MolarConcentration.moleculesToConcentration(numberOfMolecules);
+        }
+        // initialize
+        updatable.getConcentrationContainer().initialize(topology, entity, UnitRegistry.concentration(concentration));
+    }
+
+    public CellRegion getCellRegion() {
+        return region;
     }
 
     @Override
@@ -117,5 +135,12 @@ public class MembraneConcentration implements InitialConcentration {
     @Override
     public int hashCode() {
         return Objects.hash(region, entity);
+    }
+
+    public String toString() {
+        return "Concentration: R = " + region.getIdentifier() +
+                " E = " + entity.getIdentifier() +
+                " C = " + numberOfMolecules +
+                " molecules / " + area;
     }
 }

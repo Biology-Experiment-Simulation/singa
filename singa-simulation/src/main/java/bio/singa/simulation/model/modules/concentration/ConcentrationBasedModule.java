@@ -3,6 +3,7 @@ package bio.singa.simulation.model.modules.concentration;
 import bio.singa.chemistry.entities.ChemicalEntity;
 import bio.singa.features.model.Feature;
 import bio.singa.features.model.ScalableQuantitativeFeature;
+import bio.singa.features.quantities.MolarConcentration;
 import bio.singa.features.units.UnitRegistry;
 import bio.singa.simulation.exceptions.NumericalInstabilityException;
 import bio.singa.simulation.model.modules.UpdateModule;
@@ -12,6 +13,7 @@ import bio.singa.simulation.model.modules.concentration.specifity.UpdateSpecific
 import bio.singa.simulation.model.parameters.FeatureManager;
 import bio.singa.simulation.model.simulation.Simulation;
 import bio.singa.simulation.model.simulation.Updatable;
+import bio.singa.simulation.model.simulation.UpdateScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,6 +115,37 @@ public abstract class ConcentrationBasedModule<DeltaFunctionType extends Abstrac
         state = PENDING;
         applicationCondition = updatable -> true;
         identifier = getClass().getSimpleName();
+    }
+
+    @Override
+    public void initialize() {
+
+    }
+
+    @Override
+    public void run() {
+        UpdateScheduler scheduler = getSimulation().getScheduler();
+        while (state == PENDING || state == REQUIRING_RECALCULATION) {
+            switch (state) {
+                case PENDING:
+                    // calculate update
+                    logger.debug("calculating updates for {}.", Thread.currentThread().getName());
+                    calculateUpdates();
+                    break;
+                case REQUIRING_RECALCULATION:
+                    // optimize time step
+                    logger.debug("{} requires recalculation.", Thread.currentThread().getName());
+                    boolean prioritizedModule = scheduler.interruptAllBut(Thread.currentThread(), this);
+                    if (prioritizedModule) {
+                        optimizeTimeStep();
+                    } else {
+                        state = INTERRUPTED;
+                    }
+                    break;
+            }
+        }
+        scheduler.getCountDownLatch().countDown();
+        logger.debug("Module finished {}, latch at {}.", Thread.currentThread().getName(), scheduler.getCountDownLatch().getCount());
     }
 
     /**
@@ -367,38 +400,40 @@ public abstract class ConcentrationBasedModule<DeltaFunctionType extends Abstrac
      * @throws NumericalInstabilityException if any of the encountered errors is the result of an numerical
      * instability.
      */
-    public LocalError determineLargestLocalError() {
+    public NumericalError determineLargestLocalError() {
         // no deltas mean this module did not change anything in the course of this simulation step
         if (supplier.getCurrentFullDeltas().isEmpty()) {
-            return LocalError.MINIMAL_EMPTY_ERROR;
+            return NumericalError.MINIMAL_EMPTY_ERROR;
         }
         if (supplier.getCurrentFullDeltas().size() != supplier.getCurrentHalfDeltas().size()) {
-            logger.warn("The deltas that should be applied have fallen below " +
+            logger.trace("The deltas that should be applied have fallen below " +
                     "the threshold of " + deltaCutoff + ". (Module: " + getIdentifier() + ")");
-            return LocalError.MINIMAL_EMPTY_ERROR;
+            return NumericalError.MINIMAL_EMPTY_ERROR;
         }
 
         // compare full and half deltas
         double largestLocalError = -Double.MAX_VALUE;
         ConcentrationDeltaIdentifier largestIdentifier = null;
+        double associatedDelta = 0.0;
         for (ConcentrationDeltaIdentifier identifier : supplier.getCurrentFullDeltas().keySet()) {
             double fullDelta = supplier.getCurrentFullDeltas().get(identifier).getValue();
             double halfDelta = supplier.getCurrentHalfDeltas().get(identifier).getValue();
             // calculate error
             double localError = Math.abs(1 - (fullDelta / halfDelta));
-            // check for numerical instabilities
-            checkErrorStability(fullDelta, halfDelta, localError);
             // determine the largest error in the current deltas
             if (largestLocalError < localError) {
+                // check for numerical instabilities
+                checkErrorStability(fullDelta, halfDelta, localError);
                 largestIdentifier = identifier;
                 largestLocalError = localError;
+                associatedDelta = fullDelta;
             }
         }
         // safety check
         Objects.requireNonNull(largestIdentifier);
-        LocalError localError = new LocalError(largestIdentifier.getUpdatable(), largestIdentifier.getEntity(), largestLocalError);
-        logger.debug("The largest error was {} for {}", localError.getValue(), localError.getUpdatable());
+        NumericalError localError = new NumericalError(largestIdentifier.getUpdatable(), largestIdentifier.getEntity(), largestLocalError);
         // set local error and return local error
+        simulation.getScheduler().setLargestLocalError(localError, this, associatedDelta);
         return localError;
     }
 
@@ -410,7 +445,7 @@ public abstract class ConcentrationBasedModule<DeltaFunctionType extends Abstrac
      * @param error The error.
      */
     private void checkErrorStability(double fullDelta, double halfDelta, double error) {
-        if (error > errorCutoff) {
+        if (error > errorCutoff && MolarConcentration.concentrationToMolecules(fullDelta).getValue().doubleValue() > simulation.getScheduler().getRecalculationCutoff()) {
             throw new NumericalInstabilityException("The module " + toString() + " experiences numerical instabilities. " +
                     "The local error between the full step delta (" + fullDelta + ") and half step delta (" + halfDelta +
                     ") is " + error + ". This can be an result of time steps that have been initially chosen too large" +
@@ -445,30 +480,33 @@ public abstract class ConcentrationBasedModule<DeltaFunctionType extends Abstrac
      * a recalculation.
      */
     private void evaluateModuleState() {
-        if (supplier.getLargestLocalError().getValue() < simulation.getScheduler().getRecalculationCutoff()) {
+        // calculate ration of local and global error
+        if (localErrorIsAcceptable()) {
             state = SUCCEEDED;
         } else {
             logger.trace("Recalculation required for error {}.", supplier.getLargestLocalError().getValue());
             state = REQUIRING_RECALCULATION;
             supplier.clearDeltas();
-            scope.clearPotentialDeltas(supplier.getLargestLocalError().getUpdatable());
+            scope.clearPotentialDeltas();
         }
+    }
+
+    private boolean localErrorIsAcceptable() {
+        boolean errorRatioIsValid = false;
+        if (simulation.getScheduler().getLargestGlobalError().getValue() != 0.0) {
+            // calculate ratio of local and global error
+            double errorRatio = supplier.getLargestLocalError().getValue() / simulation.getScheduler().getLargestGlobalError().getValue();
+            errorRatioIsValid = errorRatio > 100000;
+        }
+        // use threshold
+        boolean thresholdIsValid = supplier.getLargestLocalError().getValue() < simulation.getScheduler().getRecalculationCutoff();
+        return errorRatioIsValid || thresholdIsValid;
     }
 
     @Override
     public void resetState() {
         state = PENDING;
         supplier.resetError();
-    }
-
-    /**
-     * References the module and referenced entities to the referenced simulation.
-     */
-    protected void addModuleToSimulation() {
-        simulation.getModules().add(this);
-        for (ChemicalEntity chemicalEntity : referencedChemicalEntities) {
-            simulation.addReferencedEntity(chemicalEntity);
-        }
     }
 
     @Override
@@ -549,18 +587,34 @@ public abstract class ConcentrationBasedModule<DeltaFunctionType extends Abstrac
 
     @Override
     public void checkFeatures() {
+        outer:
         for (Class<? extends Feature> featureClass : getRequiredFeatures()) {
-            for (ChemicalEntity chemicalEntity : getReferencedEntities()) {
-                if (!chemicalEntity.hasFeature(featureClass)) {
-                    chemicalEntity.setFeature(featureClass);
+            for (Feature<?> feature : featureManager.getFeatures()) {
+                if (featureClass.isInstance(feature)) {
+                    // logger.info("Required feature {}: {} will be used and is set to {}.", featureClass.getSimpleName(), feature.getClass().getSimpleName(), feature.getContent());
+                    continue outer;
                 }
             }
+            logger.warn("Required feature {} has not been set.", featureClass.getSimpleName());
         }
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName();
+        return getIdentifier();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ConcentrationBasedModule<?> that = (ConcentrationBasedModule<?>) o;
+        return Objects.equals(identifier, that.identifier);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(identifier);
     }
 
 }

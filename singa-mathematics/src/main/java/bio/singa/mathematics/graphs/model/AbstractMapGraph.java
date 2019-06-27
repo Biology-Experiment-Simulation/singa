@@ -6,6 +6,8 @@ import bio.singa.mathematics.vectors.Vector;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * This is a simple implementation of the graph interface, that handles the most common operations defined for adding
@@ -102,37 +104,6 @@ public abstract class AbstractMapGraph<NodeType extends Node<NodeType, VectorTyp
         return nodeToBeRemoved;
     }
 
-    public EdgeType removeEdge(EdgeType edgeToRemove) {
-        EdgeType correspondingEdge = edges.entrySet().stream()
-                .filter(edge -> edge.getValue().equals(edgeToRemove))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Could not remove edge " + edgeToRemove + "."));
-        // remove references between source and target
-        NodeType source = correspondingEdge.getSource();
-        NodeType target = correspondingEdge.getTarget();
-        source.getNeighbours().remove(target);
-        target.getNeighbours().remove(source);
-        edges.entrySet().removeIf(edge -> edge.getValue().equals(correspondingEdge));
-        return correspondingEdge;
-    }
-
-    public EdgeType removeEdge(int edgeIdentifierToRemove) {
-        EdgeType correspondingEdge = edges.entrySet().stream()
-                .filter(edge -> edge.getValue().getIdentifier() == edgeIdentifierToRemove)
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Could not remove edge with identifier " + edgeIdentifierToRemove + "."));
-        // remove references between source and target
-        NodeType source = correspondingEdge.getSource();
-        NodeType target = correspondingEdge.getTarget();
-        source.getNeighbours().remove(target);
-        target.getNeighbours().remove(source);
-        edges.entrySet().removeIf(edge -> edge.getValue().equals(correspondingEdge));
-        return correspondingEdge;
-    }
-
-
     @Override
     public int nextEdgeIdentifier() {
         return nextEdgeIdentifier++;
@@ -187,9 +158,77 @@ public abstract class AbstractMapGraph<NodeType extends Node<NodeType, VectorTyp
      */
     public abstract int addEdgeBetween(NodeType source, NodeType target);
 
+    /**
+     * Remove the edge from the graph. Also removes corresponding neighbouring node relations.
+     *
+     * @param source The source node.
+     * @param target The target node.
+     * @return The edge that was removed or an empty optional if no edge could be found between the nodes.
+     */
+    public Optional<EdgeType> removeEdge(NodeType source, NodeType target) {
+        Optional<EdgeType> optionalEdge = getEdgeBetween(source, target);
+        if (optionalEdge.isPresent()) {
+            EdgeType edge = optionalEdge.get();
+            edges.remove(edge.getIdentifier());
+            source.getNeighbours().remove(target);
+            target.getNeighbours().remove(source);
+            return Optional.of(edge);
+        }
+        return Optional.empty();
+    }
+
     @Override
     public boolean containsNode(Object node) {
         return nodes.containsValue(node);
+    }
+
+    /**
+     * Returns true if the graph contains any node that matches the predicate.
+     *
+     * @param nodePredicate The predicate to match.
+     * @return The
+     */
+    public boolean containsNode(Predicate<NodeType> nodePredicate) {
+        return nodes.values().stream()
+                .anyMatch(nodePredicate);
+    }
+
+    /**
+     * Evaluates the predicate for every node in the graph and returns any node that matched the predicate.
+     *
+     * @param nodePredicate The predicate to match.
+     * @return Any node that matched the predicate and an empty optional otherwise.
+     */
+    public Optional<NodeType> getNode(Predicate<NodeType> nodePredicate) {
+        return nodes.values().stream()
+                .filter(nodePredicate)
+                .findAny();
+    }
+
+    /**
+     * Evaluates the predicate for every node in the graph. An edge will be created between fhe first node that matches
+     * the predicate and the given node.
+     *
+     * @param appendPredicate The predicate to be evaluated.
+     * @param nodeToAppend The node to append.
+     * @return The index of the edge created or -1 if no node matched the predicate and the node was not appended.
+     */
+    public int appendNode(Predicate<NodeType> appendPredicate, NodeType nodeToAppend) {
+        return getNode(appendPredicate)
+                .map(graphNode -> addEdgeBetween(graphNode, nodeToAppend))
+                .orElse(-1);
+    }
+
+    /**
+     * Evaluates the predicate for every node in the graph, if no node matches the predicate the given node is added.
+     *
+     * @param preventionPredicate The predicate to evaluate.
+     * @param nodeToAdd The node to add.
+     * @return The added node or the node that matched the predicate.
+     */
+    public NodeType addNodeIf(Predicate<NodeType> preventionPredicate, NodeType nodeToAdd) {
+        return getNode(preventionPredicate)
+                .orElseGet(() -> getNode(addNode(nodeToAdd)));
     }
 
     @Override

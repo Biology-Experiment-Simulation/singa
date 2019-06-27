@@ -8,17 +8,16 @@ import bio.singa.mathematics.vectors.Vectors;
 import bio.singa.simulation.model.agents.surfacelike.Membrane;
 import bio.singa.simulation.model.agents.surfacelike.MembraneLayer;
 import bio.singa.simulation.model.agents.surfacelike.MembraneSegment;
+import bio.singa.simulation.model.graphs.AutomatonNode;
 import bio.singa.simulation.model.simulation.Simulation;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-import static bio.singa.simulation.model.agents.linelike.LineLikeAgent.FilamentType.*;
+import static bio.singa.simulation.model.agents.linelike.LineLikeAgent.ACTIN;
 import static bio.singa.simulation.model.agents.linelike.LineLikeAgent.GrowthBehaviour.STAGNANT;
+import static bio.singa.simulation.model.agents.linelike.LineLikeAgent.MICROTUBULE;
 
 /**
  * @author cl
@@ -29,12 +28,14 @@ public class LineLikeAgentLayer {
     private MembraneLayer membraneLayer;
     private Rectangle simulationRegion;
     private Simulation simulation;
+    private List<LineLikeAgent> misguidedFilaments;
 
     public LineLikeAgentLayer(Simulation simulation, MembraneLayer membraneLayer) {
         filaments = new ArrayList<>();
         this.simulation = simulation;
         simulationRegion = simulation.getSimulationRegion();
         this.membraneLayer = membraneLayer;
+        misguidedFilaments = new ArrayList<>();
     }
 
     public void spawnFilament(Membrane sourceMembrane, Membrane targetMembrane) {
@@ -150,6 +151,11 @@ public class LineLikeAgentLayer {
                         }
                     }
                 }
+                if (!simulationRegion.isInside(head)) {
+                    filament.setPlusEndBehaviour(STAGNANT);
+                    misguidedFilaments.add(filament);
+                    break;
+                }
             }
         }
 
@@ -183,12 +189,25 @@ public class LineLikeAgentLayer {
         return false;
     }
 
+    public void addFilaments(Collection<LineLikeAgent> filaments) {
+        this.filaments.addAll(filaments);
+    }
+
     public void addMicrotubule(Vector2D initialPosition, Vector2D initialDirection) {
         filaments.add(new LineLikeAgent(MICROTUBULE, initialPosition, initialDirection, simulation.getGraph()));
     }
 
     public void addActin(Vector2D initialPosition, Vector2D initialDirection) {
         filaments.add(new LineLikeAgent(ACTIN, initialPosition, initialDirection, simulation.getGraph()));
+    }
+
+    public void purgeMisguidedFilaments() {
+        for (LineLikeAgent misguidedFilament : misguidedFilaments) {
+            filaments.remove(misguidedFilament);
+            for (AutomatonNode node : simulation.getGraph().getNodes()) {
+                node.getAssociatedLineLikeAgents().remove(misguidedFilament);
+            }
+        }
     }
 
     public List<LineLikeAgent> getFilaments() {

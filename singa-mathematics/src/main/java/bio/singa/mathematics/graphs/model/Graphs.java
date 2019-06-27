@@ -6,8 +6,8 @@ import bio.singa.mathematics.graphs.grid.GridGraph;
 import bio.singa.mathematics.graphs.grid.GridNode;
 import bio.singa.mathematics.graphs.trees.BinaryTree;
 import bio.singa.mathematics.graphs.trees.BinaryTreeNode;
-import bio.singa.mathematics.topology.grids.rectangular.RectangularCoordinate;
 import bio.singa.mathematics.topology.grids.rectangular.NeumannRectangularDirection;
+import bio.singa.mathematics.topology.grids.rectangular.RectangularCoordinate;
 import bio.singa.mathematics.vectors.Vector;
 import bio.singa.mathematics.vectors.Vector2D;
 import bio.singa.mathematics.vectors.Vectors;
@@ -23,8 +23,9 @@ import java.util.List;
  */
 public class Graphs {
 
-    public static final Rectangle DEFAULT_BOUNDING_BOX = new Rectangle(400, 400);
     private static final Logger logger = LoggerFactory.getLogger(Graphs.class);
+
+    public static final Rectangle DEFAULT_BOUNDING_BOX = new Rectangle(400, 400);
 
     /**
      * Generates a linear graph with the given number of nodes. Each node will be connected to its predecessor.
@@ -195,9 +196,16 @@ public class Graphs {
         logger.debug("Creating randomized grid graph with with {} columns and {} rows.", columns, rows);
         GridGraph graph = new GridGraph(columns, rows);
         double horizontalSpacing = boundingBox.getWidth() / columns;
-        double horizontalOffset = 0.5 * horizontalSpacing;
         double verticalSpacing = boundingBox.getHeight() / rows;
+
+        if (horizontalSpacing > verticalSpacing) {
+            horizontalSpacing = verticalSpacing;
+        } else if (verticalSpacing > horizontalSpacing) {
+            verticalSpacing = horizontalSpacing;
+        }
+
         double verticalOffset = 0.5 * verticalSpacing;
+        double horizontalOffset = 0.5 * horizontalSpacing;
 
         // adding nodes
         logger.trace("Creating and placing nodes ...");
