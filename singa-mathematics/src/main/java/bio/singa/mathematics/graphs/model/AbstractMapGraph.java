@@ -177,6 +177,10 @@ public abstract class AbstractMapGraph<NodeType extends Node<NodeType, VectorTyp
         return Optional.empty();
     }
 
+    public Optional<EdgeType> removeEdge(EdgeType edge) {
+        return removeEdge(edge.getSource(), edge.getTarget());
+    }
+
     @Override
     public boolean containsNode(Object node) {
         return nodes.containsValue(node);
