@@ -15,7 +15,7 @@ import java.util.Optional;
  *
  * @author cl
  */
-class MmtfLeafFactory {
+class LeafFactory {
 
     /**
      * A cache containing the already seen ligand families.
@@ -25,7 +25,7 @@ class MmtfLeafFactory {
     /**
      * Prevent external instantiation.
      */
-    private MmtfLeafFactory() {
+    private LeafFactory() {
 
     }
 
@@ -68,5 +68,8 @@ class MmtfLeafFactory {
         ligandFamilyCache.put(threeLetterCode, ligandFamily);
         return ligandFamily;
     }
+
+
+
 
 }
