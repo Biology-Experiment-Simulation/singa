@@ -79,7 +79,7 @@ public class MmcifModel implements Model {
 
     @Override
     public List<Chain> getAllChains() {
-        List<String> chainIdentifiers = data.getAtomSite().getLabelAsymId().values()
+        List<String> chainIdentifiers = data.getAtomSite().getAuthAsymId().values()
                 .collect(Collectors.toList());
 
         int initialAtomIndex = initialIndex;
@@ -87,7 +87,7 @@ public class MmcifModel implements Model {
         for (int atomIndex = initialIndex - 1; atomIndex < endIndex; atomIndex++) {
             String chainIdentifier = chainIdentifiers.get(atomIndex);
             if (!previousChainIdentifier.equals(chainIdentifier)) {
-                MmcifChain finishedChain = new MmcifChain(data, modelIdentifier, previousChainIdentifier, initialAtomIndex, atomIndex);
+                MmcifChain finishedChain = new MmcifChain(data, modelIdentifier, previousChainIdentifier, initialAtomIndex, atomIndex-1);
                 cachedChains.put(previousChainIdentifier, finishedChain);
                 initialAtomIndex = atomIndex + 1;
                 previousChainIdentifier = chainIdentifier;

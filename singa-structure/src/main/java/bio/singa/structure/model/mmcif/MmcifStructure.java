@@ -7,7 +7,7 @@ import org.rcsb.cif.model.Block;
 import org.rcsb.cif.model.CifFile;
 
 import java.io.IOException;
-import java.net.URL;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,7 +36,7 @@ public class MmcifStructure implements Structure {
 
     @Override
     public String getPdbIdentifier() {
-        return data.getEntry().getId().get(0);
+        return data.getEntry().getId().get(0).toLowerCase();
     }
 
     @Override
@@ -176,10 +176,18 @@ public class MmcifStructure implements Structure {
 
     public static void main(String[] args) throws IOException {
         String pdbId = "2N5E";
-        MmcifStructure structure = new MmcifStructure(CifIO.readFromURL(new URL("https://files.rcsb.org/download/" + pdbId + ".cif")));
+        MmcifStructure structure = new MmcifStructure(CifIO.readFromPath(Paths.get("C:/Users/Christoph/Downloads/2n5e.cif")));
 
-        System.out.println(structure.getFirstModel());
-        System.out.println(structure.getFirstChain());
+        for (Model model : structure.getAllModels()) {
+            System.out.println(model);
+            for (Chain chain : model.getAllChains()) {
+                System.out.println("  "+chain);
+                for (LeafSubstructure<?> leafSubstructure : chain.getAllLeafSubstructures()) {
+                    System.out.println("    "+leafSubstructure.getIdentifier());
+                }
+            }
+            System.out.println();
+        }
 
     }
 

@@ -5,6 +5,11 @@ import bio.singa.structure.model.families.LigandFamily;
 import bio.singa.structure.model.families.NucleotideFamily;
 import bio.singa.structure.model.identifiers.LeafIdentifier;
 import bio.singa.structure.model.interfaces.LeafSubstructure;
+import bio.singa.structure.model.mmcif.MmcifAminoAcid;
+import bio.singa.structure.model.mmcif.MmcifLeafSubstructure;
+import bio.singa.structure.model.mmcif.MmcifLigand;
+import bio.singa.structure.model.mmcif.MmcifNucleotide;
+import org.rcsb.cif.model.Block;
 import org.rcsb.mmtf.api.StructureDataInterface;
 
 import java.util.HashMap;
@@ -15,7 +20,7 @@ import java.util.Optional;
  *
  * @author cl
  */
-class LeafFactory {
+public class LeafFactory {
 
     /**
      * A cache containing the already seen ligand families.
@@ -69,7 +74,18 @@ class LeafFactory {
         return ligandFamily;
     }
 
-
+    public static MmcifLeafSubstructure<?> createLeaf(Block data, LeafIdentifier leafIdentifier, String threeLetterCode, int initialIndex, int endIndex) {
+        Optional<AminoAcidFamily> aminoAcidFamily = AminoAcidFamily.getAminoAcidTypeByThreeLetterCode(threeLetterCode);
+        if (aminoAcidFamily.isPresent()) {
+            return new MmcifAminoAcid(data, leafIdentifier, aminoAcidFamily.get(), initialIndex, endIndex);
+        }
+        Optional<NucleotideFamily> nucleotideFamily = NucleotideFamily.getNucleotideByThreeLetterCode(threeLetterCode);
+        if (nucleotideFamily.isPresent()) {
+            return new MmcifNucleotide(data, leafIdentifier, nucleotideFamily.get(), initialIndex, endIndex);
+        }
+        LigandFamily ligandFamily = getLigandFamily(threeLetterCode);
+        return new MmcifLigand(data, leafIdentifier, ligandFamily, initialIndex, endIndex);
+    }
 
 
 }

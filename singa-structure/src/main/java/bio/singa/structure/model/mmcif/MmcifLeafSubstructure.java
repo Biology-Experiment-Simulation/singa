@@ -4,6 +4,7 @@ import bio.singa.structure.model.families.StructuralFamily;
 import bio.singa.structure.model.identifiers.LeafIdentifier;
 import bio.singa.structure.model.interfaces.Atom;
 import bio.singa.structure.model.interfaces.LeafSubstructure;
+import org.rcsb.cif.model.Block;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,11 +14,23 @@ import java.util.Optional;
  */
 public class MmcifLeafSubstructure<FamilyType extends StructuralFamily> implements LeafSubstructure<FamilyType> {
 
+    private Block data;
+    private LeafIdentifier leafIdentifier;
+    private FamilyType structuralFamily;
+    private int initialIndex;
+    private int endINdex;
 
+    public MmcifLeafSubstructure(Block data, LeafIdentifier leafIdentifier, FamilyType structuralFamily, int initialIndex, int endIndex) {
+        this.data = data;
+        this.leafIdentifier = leafIdentifier;
+        this.structuralFamily = structuralFamily;
+        this.initialIndex = initialIndex;
+        this.endINdex = endIndex;
+    }
 
     @Override
     public LeafIdentifier getIdentifier() {
-        return null;
+        return leafIdentifier;
     }
 
     @Override

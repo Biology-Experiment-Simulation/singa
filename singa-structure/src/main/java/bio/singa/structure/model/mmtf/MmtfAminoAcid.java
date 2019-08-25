@@ -50,6 +50,7 @@ public class MmtfAminoAcid extends MmtfLeafSubstructure<AminoAcidFamily> impleme
         exchangeableFamilies = new HashSet<>(mmtfLeafSubstructure.exchangeableFamilies);
     }
 
+
     @Override
     public boolean isAnnotatedAsHeteroAtom() {
         return false;
